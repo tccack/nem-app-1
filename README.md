@@ -1,3 +1,8 @@
+This is A NEM12 File Processor (work in progress)
+If you want a sample file to see how it runs, select the NEM12Sample.csv and download it, then process on the app at
+https://nem-app-1.streamlit.app/
+
+
 # 🎈 Blank app template
 
 A simple Streamlit app template for you to modify!
