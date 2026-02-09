@@ -297,7 +297,10 @@ def main():
     st.title("⚡ NEM12 Data Processor")
     st.markdown("""
     This application processes NEM12 energy data files, converts 5-minute interval data to hourly aggregates,
-    and provides interactive analysis of the last 2 years of data.
+    and provides interactive analysis of the last 2 years of data (or at least it should do).
+    If this is interesting or if you have suggestions to improve it, please reach out at acmkuiper<remove>@gmail.com.
+    I would like to provide a method for people to use Australian NEM12 data to help improve knowledge before making
+    choices about solar and more importantly batteries.
     """)
     
     # File upload option
