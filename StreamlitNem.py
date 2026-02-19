@@ -171,6 +171,7 @@ def create_hourly_dataframe(data_records):
     hourly_df['date'] = hourly_df['hourly_group'].dt.date
     hourly_df['hour'] = hourly_df['hourly_group'].dt.hour
     hourly_df['day_of_week'] = hourly_df['hourly_group'].dt.day_name()
+    hourly_df['day_num'] = hourly_df['hourly_group'].dt.day  # ADDED: Numerical day of month
     hourly_df['month'] = hourly_df['hourly_group'].dt.month
     hourly_df['year'] = hourly_df['hourly_group'].dt.year
     
@@ -189,6 +190,28 @@ def create_hourly_dataframe(data_records):
     
     return hourly_df
 
+def create_daily_summary(hourly_df):
+    """
+    Create daily summary with peak and average calculations
+    """
+    if hourly_df is None or hourly_df.empty:
+        return None
+    
+    # Calculate daily metrics
+    daily_summary = hourly_df.groupby(['nmi', 'section', 'date']).agg({
+        'max_power_kw': 'max',  # Daily peak (max of hourly peaks)
+        'avg_power_kw': 'mean',  # Daily average (average of hourly averages)
+        'hourly_energy_kwh': 'sum',  # Total daily energy
+        'day_num': 'first'  # Keep day number
+    }).round(6)
+    
+    daily_summary.columns = ['daily_peak_kw', 'daily_avg_of_hourly_avg_kw', 'daily_energy_kwh', 'day_num']
+    
+    # Reset index to get columns
+    daily_summary = daily_summary.reset_index()
+    
+    return daily_summary
+
 def display_summary(hourly_df):
     """
     Display comprehensive summary of hourly NEM12 data in Streamlit
@@ -198,6 +221,9 @@ def display_summary(hourly_df):
         return
     
     st.header("📊 NEM12 Hourly Summary (Last 2 Years)")
+    
+    # Create daily summary
+    daily_summary = create_daily_summary(hourly_df)
     
     # Basic stats
     col1, col2, col3, col4 = st.columns(4)
@@ -212,6 +238,32 @@ def display_summary(hourly_df):
     
     st.write(f"**Date Range:** {hourly_df['date'].min()} to {hourly_df['date'].max()}")
     st.write(f"**Sections Found:** {', '.join(sorted(hourly_df['section'].unique()))}")
+    
+    # NEW: Display daily metrics
+    if daily_summary is not None and not daily_summary.empty:
+        st.subheader("📅 Daily Summary Metrics")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            # Show the overall peak (maximum of daily peaks) - regardless of time of day
+            overall_peak = daily_summary['daily_peak_kw'].max()
+            peak_date = daily_summary.loc[daily_summary['daily_peak_kw'].idxmax(), 'date']
+            st.metric("Overall Peak Power (Any Time)", f"{overall_peak:.2f} kW", 
+                     help=f"Peak occurred on {peak_date}")
+        
+        with col2:
+            # Show average of daily averages (correct daily average calculation)
+            avg_of_daily_avgs = daily_summary['daily_avg_of_hourly_avg_kw'].mean()
+            st.metric("Average of Daily Averages", f"{avg_of_daily_avgs:.2f} kW",
+                     help="Average of each day's average power (correct daily average)")
+        
+        with col3:
+            st.metric("Total Daily Records", f"{len(daily_summary)}")
+        
+        # Show daily data sample with day numbers
+        with st.expander("📋 View Daily Summary Data (with Day Numbers)"):
+            st.dataframe(daily_summary[['nmi', 'section', 'date', 'day_num', 'daily_peak_kw', 
+                                        'daily_avg_of_hourly_avg_kw', 'daily_energy_kwh']].head(20))
     
     # Summary by Section
     st.subheader("Hourly Energy by Section")
@@ -262,7 +314,7 @@ def display_summary(hourly_df):
             st.line_chart(hourly_pattern.set_index('hour')['hourly_energy_kwh'])
         
         with tab2:
-            st.dataframe(filtered_data[['date', 'hour', 'hourly_energy_kwh', 'avg_power_kw', 'min_power_kw', 'max_power_kw']].head(50))
+            st.dataframe(filtered_data[['date', 'hour', 'day_num', 'hourly_energy_kwh', 'avg_power_kw', 'min_power_kw', 'max_power_kw']].head(50))
     
     return section_summary
 
@@ -297,7 +349,14 @@ def main():
     st.title("⚡ NEM12 Data Processor")
     st.markdown("""
     This application processes NEM12 energy data files, converts 5-minute interval data to hourly aggregates,
-    and provides interactive analysis of the last 2 years of data (or at least it should do).
+    and provides interactive analysis of the last 2 years of data.
+    
+    **Features:**
+    - Daily peak power (maximum kW regardless of time)
+    - Daily average power (average of hourly averages)
+    - Day number (1-31) for each date
+    - Last 2 years of data only
+    
     If this is interesting or if you have suggestions to improve it, please reach out at acmkuiper<remove>@gmail.com.
     I would like to provide a method for people to use Australian NEM12 data to help improve knowledge before making
     choices about solar and more importantly batteries.
@@ -347,9 +406,9 @@ def main():
                     hourly_df = hourly_df.sort_values(['section_order', 'date', 'hour'])
                     hourly_df = hourly_df.drop('section_order', axis=1)
                     
-                    # Select output columns
+                    # Select output columns for hourly data (including day_num)
                     output_columns = [
-                        'nmi', 'section', 'date', 'hour', 'day_of_week', 'month', 'year',
+                        'nmi', 'section', 'date', 'hour', 'day_of_week', 'day_num', 'month', 'year',
                         'hourly_energy_kwh', 'avg_power_kw', 'min_power_kw', 'max_power_kw',
                         'interval_count'
                     ]
@@ -359,7 +418,7 @@ def main():
                     for col in numeric_columns:
                         hourly_df[col] = pd.to_numeric(hourly_df[col], errors='coerce')
                     
-                    # Create download button
+                    # Create download button for hourly data
                     csv_data = hourly_df[output_columns].to_csv(index=False, float_format='%.6f')
                     
                     st.download_button(
@@ -368,6 +427,20 @@ def main():
                         file_name="nem12_hourly_summary.csv",
                         mime="text/csv"
                     )
+                    
+                    # NEW: Download button for daily summary
+                    daily_summary = create_daily_summary(hourly_df)
+                    if daily_summary is not None and not daily_summary.empty:
+                        daily_csv = daily_summary[['nmi', 'section', 'date', 'day_num', 
+                                                   'daily_peak_kw', 'daily_avg_of_hourly_avg_kw', 
+                                                   'daily_energy_kwh']].to_csv(index=False, float_format='%.6f')
+                        
+                        st.download_button(
+                            label="📥 Download Daily Summary (CSV)",
+                            data=daily_csv,
+                            file_name="nem12_daily_summary.csv",
+                            mime="text/csv"
+                        )
                     
                     # Display final statistics
                     st.subheader("📋 Final Statistics")
@@ -399,7 +472,7 @@ def main():
             st.error("Please select or upload a valid NEM12 CSV file.")
     
     # Display instructions when no processing is happening
-    if not st.session_state.get('processed', False):
+    if 'processed' not in st.session_state:
         st.info("👈 Configure your data input in the sidebar and click 'Process NEM12 Data' to begin.")
 
 if __name__ == "__main__":
