@@ -402,7 +402,7 @@ def main():
                     section_order = {'Import': 1, 'Export': 2, 'Controlled Load': 3, 'Not Mapped': 4}
                     hourly_df['section_order'] = hourly_df['section'].map(section_order)
                     
-                    # Sort data
+                    # Sort data by section, date, and hour
                     hourly_df = hourly_df.sort_values(['section_order', 'date', 'hour'])
                     hourly_df = hourly_df.drop('section_order', axis=1)
                     
@@ -412,6 +412,11 @@ def main():
                         'hourly_energy_kwh', 'avg_power_kw', 'min_power_kw', 'max_power_kw',
                         'interval_count'
                     ]
+                    
+                    # Verify that day_num exists in the dataframe
+                    if 'day_num' not in hourly_df.columns:
+                        st.warning("day_num column not found, adding it now...")
+                        hourly_df['day_num'] = pd.to_datetime(hourly_df['date']).dt.day
                     
                     # Format numeric columns
                     numeric_columns = ['hourly_energy_kwh', 'avg_power_kw', 'min_power_kw', 'max_power_kw']
