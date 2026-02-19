@@ -4,14 +4,38 @@ from datetime import datetime, timedelta
 import os
 import sys
 import streamlit as st
+import uuid
 
 def get_nem12_file_path():
     """
     Automatically find nem12data.csv in the same folder as the script
+    Handles both local development and Streamlit Cloud deployment
     """
+    # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(script_dir, 'nem12data.csv')
-    return file_path
+    
+    # Check multiple possible locations
+    possible_paths = [
+        os.path.join(script_dir, 'nem12data.csv'),  # Same directory as script
+        os.path.join(script_dir, 'data', 'nem12data.csv'),  # In a data subfolder
+        os.path.join(os.getcwd(), 'nem12data.csv'),  # Current working directory
+        'nem12data.csv',  # Relative path
+    ]
+    
+    # Also check in Streamlit's typical locations
+    if hasattr(st, '__file__'):
+        streamlit_dir = os.path.dirname(st.__file__)
+        possible_paths.append(os.path.join(streamlit_dir, 'nem12data.csv'))
+    
+    # Try each path and return the first one that exists
+    for path in possible_paths:
+        if os.path.exists(path):
+            st.sidebar.success(f"Found file at: {path}")
+            return path
+    
+    # If no file found, return the first path for error handling
+    st.sidebar.error(f"Could not find nem12data.csv in any of these locations:\n" + "\n".join(possible_paths))
+    return possible_paths[0]  # Return the first path for error message clarity
 
 # Add caching decorators
 @st.cache_data
@@ -340,6 +364,16 @@ def process_nem12_file(file_path):
     
     return hourly_df
 
+def cleanup_temp_file(file_path):
+    """
+    Clean up temporary files when they're no longer needed
+    """
+    try:
+        if file_path and os.path.exists(file_path) and 'temp_' in file_path:
+            os.remove(file_path)
+    except Exception as e:
+        pass  # Silently fail if we can't delete temp file
+
 def main():
     """
     Main Streamlit app
@@ -379,19 +413,28 @@ def main():
     )
     
     file_path = None
+    temp_file_created = False
     
     if upload_option == "Use default file (nem12data.csv)":
         file_path = get_nem12_file_path()
-        st.sidebar.info(f"Using default file: {file_path}")
+        if os.path.exists(file_path):
+            st.sidebar.success(f"✅ Default file found")
+            st.sidebar.info(f"Path: {file_path}")
+        else:
+            st.sidebar.error(f"❌ Default file not found at: {file_path}")
+            st.sidebar.info("Please upload a file using the option above or ensure nem12data.csv is in the repository")
     else:
         uploaded_file = st.sidebar.file_uploader("Upload NEM12 CSV file", type=["csv"])
         if uploaded_file is not None:
-            # Save uploaded file temporarily
-            temp_path = "temp_nem12data.csv"
+            # Create a unique temp file name to avoid conflicts
+            temp_filename = f"temp_nem12data_{uuid.uuid4().hex}.csv"
+            temp_path = os.path.join(os.path.dirname(__file__), temp_filename)
+            
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             file_path = temp_path
-            st.sidebar.success(f"Uploaded: {uploaded_file.name}")
+            temp_file_created = True
+            st.sidebar.success(f"✅ Uploaded: {uploaded_file.name}")
     
     # Process button
     if st.sidebar.button("🚀 Process NEM12 Data", type="primary"):
@@ -400,10 +443,15 @@ def main():
                 # Process the file with caching
                 hourly_df = process_nem12_file(file_path)
                 
+                # Clean up temp file if it was created
+                if temp_file_created:
+                    cleanup_temp_file(file_path)
+                
                 if hourly_df is not None and not hourly_df.empty:
                     # Store in session state
                     st.session_state.hourly_df = hourly_df
                     st.session_state.data_processed = True
+                    st.sidebar.success("✅ Data processed successfully!")
                 else:
                     st.error("No valid data was processed.")
         else:
