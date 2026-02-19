@@ -8,7 +8,7 @@ import uuid
 
 def get_nem12_file_path():
     """
-    Automatically find nem12data.csv in the same folder as the script
+    Automatically find Nem12Sample.csv in the same folder as the script
     Handles both local development and Streamlit Cloud deployment
     """
     # Get the directory where this script is located
@@ -16,16 +16,16 @@ def get_nem12_file_path():
     
     # Check multiple possible locations
     possible_paths = [
-        os.path.join(script_dir, 'nem12data.csv'),  # Same directory as script
-        os.path.join(script_dir, 'data', 'nem12data.csv'),  # In a data subfolder
-        os.path.join(os.getcwd(), 'nem12data.csv'),  # Current working directory
-        'nem12data.csv',  # Relative path
+        os.path.join(script_dir, 'Nem12Sample.csv'),  # Same directory as script
+        os.path.join(script_dir, 'data', 'Nem12Sample.csv'),  # In a data subfolder
+        os.path.join(os.getcwd(), 'Nem12Sample.csv'),  # Current working directory
+        'Nem12Sample.csv',  # Relative path
     ]
     
     # Also check in Streamlit's typical locations
     if hasattr(st, '__file__'):
         streamlit_dir = os.path.dirname(st.__file__)
-        possible_paths.append(os.path.join(streamlit_dir, 'nem12data.csv'))
+        possible_paths.append(os.path.join(streamlit_dir, 'Nem12Sample.csv'))
     
     # Try each path and return the first one that exists
     for path in possible_paths:
@@ -34,7 +34,7 @@ def get_nem12_file_path():
             return path
     
     # If no file found, return the first path for error handling
-    st.sidebar.error(f"Could not find nem12data.csv in any of these locations:\n" + "\n".join(possible_paths))
+    st.sidebar.error(f"Could not find Nem12Sample.csv in any of these locations:\n" + "\n".join(possible_paths))
     return possible_paths[0]  # Return the first path for error message clarity
 
 # Add caching decorators
@@ -409,20 +409,20 @@ def main():
     st.sidebar.header("📁 Data Input")
     upload_option = st.sidebar.radio(
         "Select input method:",
-        ["Use default file (nem12data.csv)", "Upload CSV file"]
+        ["Use default file (Nem12Sample.csv)", "Upload CSV file"]
     )
     
     file_path = None
     temp_file_created = False
     
-    if upload_option == "Use default file (nem12data.csv)":
+    if upload_option == "Use default file (Nem12Sample.csv)":
         file_path = get_nem12_file_path()
         if os.path.exists(file_path):
             st.sidebar.success(f"✅ Default file found")
             st.sidebar.info(f"Path: {file_path}")
         else:
             st.sidebar.error(f"❌ Default file not found at: {file_path}")
-            st.sidebar.info("Please upload a file using the option above or ensure nem12data.csv is in the repository")
+            st.sidebar.info("Please upload a file using the option above or ensure Nem12Sample.csv is in the repository")
     else:
         uploaded_file = st.sidebar.file_uploader("Upload NEM12 CSV file", type=["csv"])
         if uploaded_file is not None:
